@@ -1,14 +1,18 @@
 'use client'
 
+import { useSession, signIn, signOut } from 'next-auth/react'
+import Navigation from '@/components/Navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   QrCode, 
   Shield, 
   Users, 
   FileText, 
   CheckCircle,
+  Star,
   Phone,
   Mail,
   MapPin,
@@ -16,40 +20,31 @@ import {
   Award,
   Camera,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  LogIn,
+  LogOut,
+  User
 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
+  const { data: session, status } = useSession()
+
+  const handleSignIn = () => {
+    signIn('credentials', {
+      email: 'demo@smiledental.com',
+      password: 'DL2024001',
+      redirect: false
+    })
+  }
+
+  const handleSignOut = () => {
+    signOut({ redirect: false })
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Simple Navigation Bar */}
-      <nav className="bg-white border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <QrCode className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-slate-900">DentalPass</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/test">
-                <Button variant="ghost">Test Page</Button>
-              </Link>
-              <Link href="/patient-dashboard">
-                <Button variant="ghost">Patient Demo</Button>
-              </Link>
-              <Link href="/clinic-dashboard">
-                <Button variant="ghost">Clinic Demo</Button>
-              </Link>
-              <Button className="bg-emerald-600 hover:bg-emerald-700">
-                Get Started
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
       
       {/* Hero Section */}
       <section className="py-20 px-4">
@@ -65,20 +60,40 @@ export default function Home() {
             Transform your dental practice with digital patient records, QR code passports, 
             and treatment warranties. Build patient trust and streamline clinic management.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Link href="/patient-dashboard">
-              <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8">
-                View Patient Demo
-                <ArrowRight className="w-5 h-5 ml-2" />
+          
+          {status === 'authenticated' ? (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+              <div className="flex items-center space-x-3 p-4 bg-white rounded-lg shadow-sm">
+                <User className="w-5 h-5 text-slate-600" />
+                <span className="text-slate-900">Welcome, {session.user?.name}</span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Link href="/clinic-dashboard">
+                  <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8">
+                    Go to Dashboard
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </Link>
+                <Button variant="outline" size="lg" className="text-lg px-8" onClick={handleSignOut}>
+                  <LogOut className="w-5 h-5 mr-2" />
+                  Sign Out
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+              <Link href="/clinic-dashboard">
+                <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8">
+                  View Clinic Demo
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+              </Link>
+              <Button size="lg" variant="outline" className="text-lg px-8" onClick={handleSignIn}>
+                <LogIn className="w-5 h-5 mr-2" />
+                Sign In
               </Button>
-            </Link>
-            <Link href="/clinic-dashboard">
-              <Button size="lg" variant="outline" className="text-lg px-8">
-                View Clinic Demo
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </Link>
-          </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -243,21 +258,157 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section className="py-20 px-4 bg-slate-50">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-xl text-slate-600">
+              Choose the perfect plan for your dental clinic
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {[
+              {
+                name: "Basic",
+                price: "₹999",
+                period: "/month",
+                features: ["Up to 100 patients", "Basic QR generation", "Treatment records", "Email support"],
+                color: "slate"
+              },
+              {
+                name: "Premium",
+                price: "₹1,999",
+                period: "/month",
+                features: ["Up to 500 patients", "Advanced QR features", "Warranty system", "X-ray storage", "Priority support"],
+                color: "emerald",
+                popular: true
+              },
+              {
+                name: "Enterprise",
+                price: "₹2,999",
+                period: "/month",
+                features: ["Unlimited patients", "All features", "API access", "Custom branding", "Dedicated support"],
+                color: "slate"
+              }
+            ].map((plan, index) => (
+              <Card key={index} className={`relative ${plan.popular ? 'border-emerald-500 shadow-lg' : ''}`}>
+                {plan.popular && (
+                  <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-emerald-600">
+                    Most Popular
+                  </Badge>
+                )}
+                <CardHeader className="text-center">
+                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                  <div className="text-3xl font-bold">
+                    {plan.price}
+                    <span className="text-lg font-normal text-slate-600">{plan.period}</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {plan.features.map((feature, i) => (
+                      <li key={i} className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button className={`w-full mt-6 ${plan.color === 'emerald' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
+                    Get Started
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-4 bg-emerald-600 text-white">
+        <div className="container mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Ready to Transform Your Dental Practice?
+          </h2>
+          <p className="text-xl mb-8 text-emerald-100">
+            Join 500+ clinics already using DentalPass for better patient care
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            {status === 'authenticated' ? (
+              <Link href="/clinic-dashboard">
+                <Button size="lg" variant="secondary" className="text-lg px-8">
+                  Go to Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700 text-lg px-8" onClick={handleSignIn}>
+                <LogIn className="w-5 h-5 mr-2" />
+                Sign In to Get Started
+              </Button>
+            )}
+            <Button size="lg" variant="outline" className="text-lg px-8 border-white text-white hover:bg-white hover:text-emerald-600">
+              Schedule Live Demo
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-12 px-4">
-        <div className="container mx-auto text-center">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <QrCode className="w-5 h-5 text-white" />
+        <div className="container mx-auto">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+                  <QrCode className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-bold">DentalPass</span>
+              </div>
+              <p className="text-slate-400">
+                Your trusted partner for digital dental records and warranty management.
+              </p>
             </div>
-            <span className="text-xl font-bold">DentalPass</span>
+            <div>
+              <h3 className="font-semibold mb-4">Platform</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li><Link href="/patient-dashboard" className="hover:text-white">Patient Dashboard</Link></li>
+                <li><Link href="/clinic-dashboard" className="hover:text-white">Clinic Dashboard</Link></li>
+                <li><Link href="/qr-scanner" className="hover:text-white">QR Scanner</Link></li>
+                <li><Link href="/warranty-system" className="hover:text-white">Warranty System</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Features</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li><Link href="/appointment-billing" className="hover:text-white">Appointments</Link></li>
+                <li><Link href="/xray-management" className="hover:text-white">X-Ray Storage</Link></li>
+                <li><Link href="/appointment-billing" className="hover:text-white">Billing</Link></li>
+                <li><Link href="/warranty-system" className="hover:text-white">Claims</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-4">Contact</h3>
+              <div className="space-y-2 text-slate-400">
+                <div className="flex items-center space-x-2">
+                  <Phone className="w-4 h-4" />
+                  <span>+91 98765 43210</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Mail className="w-4 h-4" />
+                  <span>support@dentalpass.in</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <MapPin className="w-4 h-4" />
+                  <span>Mumbai, India</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="text-slate-400 mb-4">
-            Your trusted partner for digital dental records and warranty management.
-          </p>
-          <p className="text-slate-500 text-sm">
-            &copy; 2024 DentalPass. All rights reserved.
-          </p>
+          <div className="border-t border-slate-800 mt-8 pt-8 text-center text-slate-400">
+            <p>&copy; 2024 DentalPass. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>

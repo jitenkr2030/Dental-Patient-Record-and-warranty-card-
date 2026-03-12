@@ -1,7 +1,7 @@
 'use client'
 
-import Navigation from '@/components/Navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,85 +21,187 @@ import {
   Download,
   Share2,
   Heart,
-  Activity
+  Activity,
+  RefreshCw,
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react'
 
-export default function PatientDashboard() {
-  const [activeTab, setActiveTab] = useState('overview')
+interface Patient {
+  id: string
+  patientId: string
+  name: string
+  email: string
+  phone: string
+  dateOfBirth: string
+  bloodGroup: string
+  allergies: string
+  medications: string
+  emergencyContact: string
+  clinicId: string
+  createdAt: string
+  updatedAt: string
+}
 
-  // Mock patient data
-  const patient = {
-    name: "Rahul Sharma",
-    patientId: "DP2024001",
-    email: "rahul.sharma@email.com",
-    phone: "+91 98765 43210",
-    dateOfBirth: "1990-05-15",
-    bloodGroup: "O+",
-    allergies: "Penicillin",
-    emergencyContact: "+91 98765 43211",
-    clinic: "Smile Dental Care",
-    address: "Mumbai, Maharashtra"
+interface Treatment {
+  id: string
+  treatmentType: string
+  tooth: string
+  dentist: string
+  date: string
+  cost: number
+  warranty: string
+  warrantyExpiry: string
+  status: string
+  notes: string
+}
+
+interface Appointment {
+  id: string
+  date: string
+  time: string
+  dentist: string
+  purpose: string
+  status: string
+}
+
+export default function PatientDashboard() {
+  const { data: session } = useSession()
+  const [activeTab, setActiveTab] = useState('overview')
+  const [patient, setPatient] = useState<Patient | null>(null)
+  const [treatments, setTreatments] = useState<Treatment[]>([])
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('')
+
+  // Fetch patient data
+  const fetchPatientData = async () => {
+    try {
+      setLoading(true)
+      if (!session?.user?.id) return
+
+      // Fetch patient profile (assuming we have a way to get current patient)
+      // For now, we'll use the first patient of the clinic
+      const response = await fetch('/api/patients')
+      const data = await response.json()
+      
+      if (data.patients && data.patients.length > 0) {
+        const currentPatient = data.patients[0]
+        setPatient(currentPatient)
+
+        // Generate QR code for this patient
+        const qrResponse = await fetch('/api/qrcode/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: currentPatient.patientId,
+            type: 'patient-passport'
+          })
+        })
+        
+        if (qrResponse.ok) {
+          const qrData = await qrResponse.json()
+          setQrCodeUrl(qrData.qrCode)
+        }
+
+        // Fetch treatments for this patient
+        const treatmentsResponse = await fetch(`/api/treatments?patientId=${currentPatient.id}`)
+        const treatmentsData = await treatmentsResponse.json()
+        setTreatments(treatmentsData.treatments || [])
+
+        // Fetch appointments for this patient
+        const appointmentsResponse = await fetch(`/api/appointments?patientId=${currentPatient.id}`)
+        const appointmentsData = await appointmentsResponse.json()
+        setAppointments(appointmentsData.appointments || [])
+      }
+    } catch (error) {
+      console.error('Error fetching patient data:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const treatments = [
-    {
-      id: 1,
-      date: "2024-01-15",
-      type: "Root Canal",
-      tooth: "Tooth 16",
-      dentist: "Dr. Priya Patel",
-      cost: 8000,
-      warranty: "3 Years",
-      warrantyExpiry: "2027-01-15",
-      status: "completed"
-    },
-    {
-      id: 2,
-      date: "2023-12-20",
-      type: "Crown",
-      tooth: "Tooth 26",
-      dentist: "Dr. Amit Kumar",
-      cost: 12000,
-      warranty: "5 Years",
-      warrantyExpiry: "2028-12-20",
-      status: "completed"
-    },
-    {
-      id: 3,
-      date: "2023-11-10",
-      type: "Cleaning",
-      tooth: "All",
-      dentist: "Dr. Priya Patel",
-      cost: 1500,
-      warranty: "N/A",
-      warrantyExpiry: "N/A",
-      status: "completed"
+  useEffect(() => {
+    if (session?.user) {
+      fetchPatientData()
     }
-  ]
+  }, [session])
 
-  const appointments = [
-    {
-      id: 1,
-      date: "2024-02-15",
-      time: "10:00 AM",
-      dentist: "Dr. Priya Patel",
-      purpose: "Regular Checkup",
-      status: "scheduled"
-    },
-    {
-      id: 2,
-      date: "2024-03-20",
-      time: "2:30 PM",
-      dentist: "Dr. Amit Kumar",
-      purpose: "Follow-up",
-      status: "scheduled"
+  const refreshData = () => {
+    fetchPatientData()
+  }
+
+  const downloadQRCode = async () => {
+    if (!qrCodeUrl) return
+
+    try {
+      const response = await fetch(qrCodeUrl)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${patient?.patientId}-qr-code.png`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Error downloading QR code:', error)
     }
-  ]
+  }
+
+  const shareQRCode = async () => {
+    if (!qrCodeUrl) return
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${patient?.name}'s Dental Passport`,
+          text: `Scan this QR code to access ${patient?.name}'s dental records`,
+          url: window.location.href
+        })
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(window.location.href)
+        alert('Link copied to clipboard!')
+      }
+    } catch (error) {
+      console.error('Error sharing QR code:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+      </div>
+    )
+  }
+
+  if (!patient) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Card className="w-96">
+          <CardHeader>
+            <CardTitle>Patient Not Found</CardTitle>
+            <CardDescription>
+              Unable to load patient information. Please try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={refreshData} className="w-full">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navigation />
-      
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
@@ -114,13 +216,17 @@ export default function PatientDashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={shareQRCode}>
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={downloadQRCode}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
+              </Button>
+              <Button variant="outline" size="sm" onClick={refreshData}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
               </Button>
             </div>
           </div>
@@ -176,11 +282,11 @@ export default function PatientDashboard() {
                       <Mail className="w-4 h-4 text-slate-600" />
                       <span className="text-sm text-slate-600">Email:</span>
                       <p className="font-medium">{patient.email}</p>
-                </div>
+                    </div>
                     <div className="flex items-center space-x-2">
                       <MapPin className="w-4 h-4 text-slate-600" />
                       <span className="text-sm text-slate-600">Clinic:</span>
-                      <p className="font-medium">{patient.clinic}</p>
+                      <p className="font-medium">Smile Dental Care</p>
                     </div>
                     <div className="flex items-center space-x-2">
                       <AlertCircle className="w-4 h-4 text-red-600" />
@@ -204,14 +310,14 @@ export default function PatientDashboard() {
               <Card>
                 <CardContent className="p-6 text-center">
                   <Shield className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold">{treatments.filter(t => t.warranty !== "N/A").length}</div>
+                  <div className="text-2xl font-bold">{treatments.filter(t => t.warranty !== 'N/A').length}</div>
                   <p className="text-sm text-slate-600">Active Warranties</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="p-6 text-center">
                   <Calendar className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-                  <div className="text-2xl font-bold">{appointments.filter(a => a.status === "scheduled").length}</div>
+                  <div className="text-2xl font-bold">{appointments.filter(a => a.status === 'scheduled').length}</div>
                   <p className="text-sm text-slate-600">Upcoming</p>
                 </CardContent>
               </Card>
@@ -239,7 +345,7 @@ export default function PatientDashboard() {
                           <Heart className="w-5 h-5 text-emerald-600" />
                         </div>
                         <div>
-                          <p className="font-medium">{treatment.type}</p>
+                          <p className="font-medium">{treatment.treatmentType}</p>
                           <p className="text-sm text-slate-600">{treatment.tooth} • {treatment.date}</p>
                         </div>
                       </div>
@@ -268,20 +374,28 @@ export default function PatientDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-center space-y-6">
-                {/* QR Code Placeholder */}
-                <div className="w-64 h-64 bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg mx-auto flex items-center justify-center">
-                  <div className="text-center">
-                    <QrCode className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-600">QR Code for {patient.patientId}</p>
+                {/* QR Code Display */}
+                {qrCodeUrl ? (
+                  <div className="w-64 h-64 bg-slate-100 rounded-lg mx-auto flex items-center justify-center p-4">
+                    <img 
+                      src={qrCodeUrl} 
+                      alt="Patient QR Code" 
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div className="w-64 h-64 bg-slate-100 rounded-lg mx-auto flex items-center justify-center p-4">
+                    <QrCode className="w-16 h-16 text-slate-400" />
+                    <p className="text-slate-600 mt-2">Loading QR Code...</p>
+                  </div>
+                )}
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button className="bg-emerald-600 hover:bg-emerald-700">
+                  <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={downloadQRCode}>
                     <Download className="w-4 h-4 mr-2" />
                     Download QR Card
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={shareQRCode}>
                     <Share2 className="w-4 h-4 mr-2" />
                     Share QR Code
                   </Button>
@@ -306,20 +420,29 @@ export default function PatientDashboard() {
           </TabsContent>
 
           <TabsContent value="treatments" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Treatment History</h2>
+              <Button className="bg-emerald-600 hover:bg-emerald-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Treatment
+              </Button>
+            </div>
             <Card>
-              <CardHeader>
-                <CardTitle>Treatment History</CardTitle>
-                <CardDescription>Complete record of all your dental treatments</CardDescription>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="space-y-4">
                   {treatments.map((treatment) => (
                     <div key={treatment.id} className="border rounded-lg p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="text-lg font-semibold">{treatment.type}</h3>
+                            <h3 className="text-lg font-semibold">{treatment.treatmentType}</h3>
                             <Badge variant="outline">{treatment.status}</Badge>
+                            {treatment.warranty !== 'N/A' && (
+                              <Badge className="bg-emerald-100 text-emerald-800">
+                                <Shield className="w-3 h-3 mr-1" />
+                                Under Warranty
+                              </Badge>
+                            )}
                           </div>
                           <div className="grid md:grid-cols-2 gap-4 text-sm">
                             <div>
@@ -339,14 +462,11 @@ export default function PatientDashboard() {
                               <p className="font-medium">₹{treatment.cost.toLocaleString()}</p>
                             </div>
                           </div>
-                          {treatment.warranty !== "N/A" && (
-                            <div className="mt-4 p-3 bg-emerald-50 rounded-lg">
-                              <div className="flex items-center space-x-2">
-                                <Shield className="w-4 h-4 text-emerald-600" />
-                                <span className="text-sm font-medium text-emerald-900">
-                                  Warranty: {treatment.warranty} (Expires: {treatment.warrantyExpiry})
-                                </span>
-                              </div>
+                          {treatment.notes && (
+                            <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                              <p className="text-sm text-slate-600">
+                                <span className="font-medium">Notes:</span> {treatment.notes}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -366,19 +486,19 @@ export default function PatientDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {treatments.filter(t => t.warranty !== "N/A").map((treatment) => (
+                  {treatments.filter(t => t.warranty !== 'N/A').map((treatment) => (
                     <div key={treatment.id} className="border rounded-lg p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-4">
                             <Shield className="w-5 h-5 text-emerald-600" />
-                            <h3 className="text-lg font-semibold">{treatment.type} Warranty</h3>
+                            <h3 className="text-lg font-semibold">{treatment.treatmentType} Warranty</h3>
                             <Badge className="bg-emerald-100 text-emerald-800">Active</Badge>
                           </div>
                           <div className="grid md:grid-cols-2 gap-4 text-sm">
                             <div>
                               <span className="text-slate-600">Treatment:</span>
-                              <p className="font-medium">{treatment.type} - {treatment.tooth}</p>
+                              <p className="font-medium">{treatment.treatmentType} - {treatment.tooth}</p>
                             </div>
                             <div>
                               <span className="text-slate-600">Warranty Period:</span>
@@ -413,12 +533,15 @@ export default function PatientDashboard() {
           </TabsContent>
 
           <TabsContent value="appointments" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Upcoming Appointments</h2>
+              <Button className="bg-emerald-600 hover:bg-emerald-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Book Appointment
+              </Button>
+            </div>
             <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Appointments</CardTitle>
-                <CardDescription>Your scheduled dental visits</CardDescription>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="space-y-4">
                   {appointments.map((appointment) => (
                     <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -428,22 +551,16 @@ export default function PatientDashboard() {
                         </div>
                         <div>
                           <p className="font-medium">{appointment.purpose}</p>
-                          <p className="text-sm text-slate-600">
-                            {appointment.date} at {appointment.time} • {appointment.dentist}
-                          </p>
+                          <p className="text-sm text-slate-600">{appointment.date} at {appointment.time} • {appointment.dentist}</p>
                         </div>
                       </div>
-                      <Badge className="bg-blue-100 text-blue-800">
-                        {appointment.status}
-                      </Badge>
+                      <div className="text-right">
+                        <Badge className={appointment.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
+                          {appointment.status}
+                        </Badge>
+                      </div>
                     </div>
                   ))}
-                </div>
-                <div className="mt-6 text-center">
-                  <Button className="bg-emerald-600 hover:bg-emerald-700">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Book New Appointment
-                  </Button>
                 </div>
               </CardContent>
             </Card>
