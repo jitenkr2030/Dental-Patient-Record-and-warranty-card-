@@ -13,20 +13,151 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// Dental Passport & Warranty Platform Schema
+
+// Clinics that use the platform
+model Clinic {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String
+  address     String
+  licenseNo   String   @unique
+  logo        String?
+  subscription String   @default("basic") // basic, premium, enterprise
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  patients    Patient[]
+  treatments  Treatment[]
+  appointments Appointment[]
+  dentists    Dentist[]
+  claims      Claim[]
 }
 
-model Post {
+// Dentists working at clinics
+model Dentist {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  name      String
+  email     String   @unique
+  phone     String
+  licenseNo String   @unique
+  clinicId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  treatments Treatment[]
+}
+
+// Patients registered in the system
+model Patient {
+  id          String   @id @default(cuid())
+  patientId   String   @unique // Unique patient identifier for QR code
+  name        String
+  email       String?  @unique
+  phone       String
+  dateOfBirth DateTime
+  bloodGroup  String?
+  allergies   String?
+  medications String?
+  emergencyContact String?
+  clinicId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  clinic      Clinic   @relation(fields: [clinicId], references: [id])
+  treatments  Treatment[]
+  appointments Appointment[]
+  warranties  Warranty[]
+  claims      Claim[]
+  xrays       XRay[]
+}
+
+// Dental treatments performed
+model Treatment {
+  id           String   @id @default(cuid())
+  patientId    String
+  clinicId     String
+  dentistId    String
+  toothNumber  String?  // Which tooth was treated
+  treatmentType String  // Root Canal, Crown, Implant, etc.
+  description  String
+  cost         Decimal
+  date         DateTime
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  patient      Patient  @relation(fields: [patientId], references: [id])
+  clinic       Clinic   @relation(fields: [clinicId], references: [id])
+  dentist      Dentist  @relation(fields: [dentistId], references: [id])
+  warranty     Warranty?
+}
+
+// Warranty information for treatments
+model Warranty {
+  id           String   @id @default(cuid())
+  treatmentId  String   @unique
+  patientId    String
+  warrantyPeriod Int    // in months
+  startDate    DateTime
+  endDate      DateTime
+  terms        String
+  certificateUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  treatment    Treatment @relation(fields: [treatmentId], references: [id])
+  patient      Patient  @relation(fields: [patientId], references: [id])
+  claims       Claim[]
+}
+
+// Warranty claims
+model Claim {
+  id          String   @id @default(cuid())
+  warrantyId  String
+  patientId   String
+  clinicId    String
+  issue       String
+  status      String   @default("pending") // pending, approved, rejected
+  resolution  String?
+  claimedAt   DateTime @default(now())
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  warranty    Warranty @relation(fields: [warrantyId], references: [id])
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  clinic      Clinic   @relation(fields: [clinicId], references: [id])
+}
+
+// Appointments
+model Appointment {
+  id         String   @id @default(cuid())
+  patientId  String
+  clinicId   String
+  dentistId  String?
+  dateTime   DateTime
+  duration   Int      // in minutes
+  status     String   @default("scheduled") // scheduled, completed, cancelled
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  patient    Patient  @relation(fields: [patientId], references: [id])
+  clinic     Clinic   @relation(fields: [clinicId], references: [id])
+}
+
+// X-ray records
+model XRay {
+  id          String   @id @default(cuid())
+  patientId   String
+  imageUrl    String
+  description String?
+  type        String   // periapical, bite-wing, panoramic, etc.
+  date        DateTime
+  createdAt   DateTime @default(now())
+  
+  patient     Patient  @relation(fields: [patientId], references: [id])
 }
